@@ -7,6 +7,7 @@ const { v4: uuidv4 } = require('uuid');
 const Redis = require("ioredis");
 server.use(restify.plugins.bodyParser());
 const { Client } = require('@elastic/elasticsearch')
+const { faker } = require('@faker-js/faker');
 
 
 //database connection mongoDB
@@ -23,7 +24,7 @@ connection().then(async (database) => {
 //Sql show users Get  
 server.get('/mysql/get', async (req, res) => {
     const connectionsql = await connectionsql1;
-    const [data] = await connectionsql.execute('SELECT * FROM users');
+    const [data] = await connectionsql.execute('SELECT * FROM users LIMIT 10');
     // let toshow = await showuser.toArray();
     // console.log(toshow); 
     res.send(data);
@@ -34,6 +35,7 @@ server.post('/mysql/create', async (req, res) => {
     const sqluser = {
         name: req.body.name,
         email: req.body.email
+
     };
     const connectionsql = await connectionsql1;
     await connectionsql.execute('INSERT INTO users (name, email) VALUES (?, ?)', [sqluser.name, sqluser.email]);
@@ -199,5 +201,67 @@ server.del('/elastic/delete/:index/:id', async (req, res) => {
     const index = req.params.index;
     const id = req.params.id;
     await client.delete({ index: index, id: id });
-    res.send("data deleted successfully");
+    return res.send("data deleted successfully");
+})
+
+
+//To create fake data into elastic
+server.post("/elastic/createbulk", async (req, res) => {
+    let bulkData = [];
+    for (let i = 0; i < 500000; i++) {
+        const firstname = faker.internet.username();
+        const lastname = faker.internet.username();
+        const email = faker.internet.email();
+        //   const password = faker.internet.password();
+        const timestamp = new Date().toLocaleTimeString();
+        const gender = faker.person.sex();
+        const zsign = faker.person.zodiacSign();
+        const country = faker.location.country();
+
+        bulkData.push({ index: { _index: 'ayush-detail' } });
+        bulkData.push({ firstname, lastname, email, timestamp, gender, zsign, country });
+    }
+
+    try {
+        const response = await client.bulk({ body: bulkData });
+        if (response.errors) {
+            res.json({
+                message: "Failed to save some or all documents",
+                error: response.errors
+            });
+        } else {
+            res.json({
+                message: "Successfully Added",
+                data: response
+            });
+        }
+    } catch (error) {
+        res.json({ message: "Failed to save", error: error })
+    }
+})
+
+//bulk data find
+
+server.get('/elastic/getbulkdata/:gender/:zsign', async (req, res) => {
+    // const index = req.params.index;
+    const gender = req.params.gender;
+    const zsign = req.params.zsign;
+    const response = await client.search({
+        index: 'ayush-detail',
+        body: {
+            query:
+            {
+                bool:{
+                    must:[
+
+                        {term: { gender: gender }},
+                        {term: { zsign: zsign }}
+                        
+                    ]
+                }
+            }
+        }
+    });
+
+    return res.send(response);
 })
