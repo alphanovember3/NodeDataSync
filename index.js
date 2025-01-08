@@ -154,10 +154,11 @@ server.del('/redis/delete/:hashkey', async (req, res) => {
     return res.send("successfully Deleted data from Redis");
 });
 
+
 //Elastic Search Routes
 //elastic connection
 const client = new Client({
-    node: 'http://192.168.0.128:9200/'
+    node: process.env.ELASTIC_IP
 })
 
 //To create data into elastic
