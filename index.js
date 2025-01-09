@@ -2,7 +2,6 @@ const restify = require('restify');
 const server = restify.createServer();
 const connection = require('./mongoConnection');
 const connectionsql1 = require('./sqlConnection');
-const mysql = require('mysql2/promise');
 const { v4: uuidv4 } = require('uuid');
 const Redis = require("ioredis");
 server.use(restify.plugins.bodyParser());
@@ -20,7 +19,7 @@ connection().then(async (database) => {
     });
 });
 
-//SQL ROUTES
+//SQL ROUTESl
 //Sql show users Get  
 server.get('/mysql/get', async (req, res) => {
     const connectionsql = await connectionsql1;
@@ -78,8 +77,7 @@ server.post('/mongo/create', async (req, res) => {
     const usercollection = db.collection("users");
     await usercollection.insertOne(user);
     console.log("Message saved to database");
-    res.send(201, user);
-    return;
+    return res.send(201, user);
 });
 
 //update the user in MONGO
@@ -91,8 +89,7 @@ server.put('/mongo/update/:id', async (req, res) => {
     }
     const usercollection = db.collection("users");
     await usercollection.updateOne({ id: id }, { $set: user });
-    res.send("User Updated")
-    return;
+    return res.send("User Updated")
 })
 
 //delete the user in mongoDB
@@ -100,16 +97,14 @@ server.del('/mongo/delete/:id', async (req, res) => {
     const id = req.params.id;
     const usercollection = db.collection("users");
     await usercollection.deleteOne({ id: id });
-    res.send("User deleted");
-    return;
+    return res.send("User deleted");
 })
 
 //Show all users in mongoDB
 server.get('/mongo/get', async (req, res) => {
     const usercollection = db.collection("users");
     const allusers = await usercollection.find().toArray();
-    res.send(allusers);
-    return;
+    return res.send(allusers);
 })
 
 //Redis Routes
@@ -240,7 +235,7 @@ server.post("/elastic/createbulk", async (req, res) => {
     }
 })
 
-//bulk data find
+//bulk data find ELASTIC 
 
 server.get('/elastic/getbulkdata/:gender/:zsign', async (req, res) => {
     // const index = req.params.index;
@@ -251,12 +246,12 @@ server.get('/elastic/getbulkdata/:gender/:zsign', async (req, res) => {
         body: {
             query:
             {
-                bool:{
-                    must:[
+                bool: {
+                    must: [
 
-                        {term: { gender: gender }},
-                        {term: { zsign: zsign }}
-                        
+                        { term: { gender: gender } },
+                        { term: { zsign: zsign } }
+
                     ]
                 }
             }
@@ -264,4 +259,133 @@ server.get('/elastic/getbulkdata/:gender/:zsign', async (req, res) => {
     });
 
     return res.send(response);
+})
+
+//Bulk data insert into mongo
+
+server.post('/mongo/createbulk', async (req, res) => {
+
+    let data = [];
+    for (let i = 0; i < 1000000; i++) {
+
+        const firstName = faker.person.firstName()
+        const lastName = faker.person.lastName()
+        const jobType = faker.person.jobType()
+        const country = faker.location.country()
+        const gender = faker.person.sex()
+        const zodiacSign = faker.person.zodiacSign()
+        const timeStamp = new Date().valueOf()
+        data.push({ firstName, lastName, jobType, country, gender, zodiacSign, timeStamp });
+    }
+
+
+    const usercollection = db.collection("bulkdata");
+
+    //ordered:true is send as option which will ensure that if one data fail to add other should be added
+    await usercollection.insertMany(data, { ordered: true });
+    return res.send("Bulk Data Added Successfully");
+
+})
+//getting bulkdata from mongo using filters
+server.get('/mongo/getbulkdata/:gender/:zsign/:country', async (req, res) => {
+
+    const zsign = req.params.zsign;
+    const gender = req.params.gender;
+    const country = req.params.country;
+    const usercollection = db.collection('bulkdata');
+    const resultdata = await usercollection.find({ country: country, gender: gender, zodiacSign: zsign }).toArray();
+    return res.send(resultdata);
+})
+
+//Creating Bulk data into Mysql
+server.post('/mysql/createbulk', async (req, res) => {
+    const connectionsql = await connectionsql1;
+
+    //This function is created to generate 10000 data at a time in array
+    function createbulksql(){
+        let data = [];
+    for (let i = 0; i < 10000; i++) {
+        const firstName = faker.person.firstName()
+        const lastName = faker.person.lastName()
+        const country = faker.location.country()
+        const gender = faker.person.sex()
+        const zodiacSign = faker.person.zodiacSign()
+        const timeStamp = new Date().valueOf()
+        data.push([firstName, lastName, country, gender, zodiacSign, timeStamp]);
+
+    }
+    return data;
+    }
+    
+    for(let i=0;i<100;i++){
+        //we will get a array from the above function and we will put that array data in mysql
+        const data1 = createbulksql();
+        const query = 'INSERT INTO bulkdata (firstName, lastName, country,gender,zodiacSign,timeStamp) VALUES ?';
+        connectionsql.query(query, [data1], (err, result) => {
+            if (err) {
+               return res.json({err});
+            }
+        })
+    }
+
+    return res.send("Data Inserted Successfully Into Mysql");
+})
+
+//Get BulkData from Mysql using filters
+
+server.get('/mysql/getbulk/:gender/:zsign/:country',async(req,res)=>{
+    const connectionsql = await connectionsql1;
+    const gender = req.params.gender;
+    const zsign = req.params.zsign;
+    const country = req.params.country;
+    const [data] = await connectionsql.query("SELECT * FROM bulkdata WHERE gender=? AND zodiacSign=? AND country =? LIMIT 10",[gender,zsign,country])
+
+    res.send(data);
+})
+
+
+//Creating summarise report data into Mysql
+server.post('/mysql/report', async (req, res) => {
+    const connectionsql = await connectionsql1;
+
+    //This function is created to generate 10000 data at a time in array
+    function createbulksql(){
+        let data = [];
+    for (let i = 0; i < 1000; i++) {
+        const firstName = faker.person.firstName()
+        const lastName = faker.person.lastName()
+        const campaign = 'campaign1'
+        const logIn =  Date.now()
+        const logOut =  Date.now() + 70000000 
+        data.push([firstName, lastName, campaign, logIn,logOut]);
+
+    }
+    return data;
+    }
+    
+    for(let i=0;i<10;i++){
+        //we will get a array from the above function and we will put that array data in mysql
+        const data1 = createbulksql();
+        const query = 'INSERT INTO reportdata (firstName, lastName, campaign,logIn,logOut) VALUES ?';
+        connectionsql.query(query, [data1], (err, result) => {
+            if (err) {
+               return res.json({err});
+            }
+        })
+    }
+
+    return res.send("Data Inserted Successfully Into Mysql");
+})
+
+
+// SELECT campaign, COUNT(*) AS user_count, AVG(login) AS avg_login, AVG(logout) AS avg_logout FROM mysqluserdata GROUP BY campaign
+
+
+server.get('/mysql/getreport',async(req,res)=>{
+    const connectionsql = await connectionsql1;
+
+    // const [data] = await connectionsql.query("SELECT * FROM bulkdata WHERE gender=? AND zodiacSign=? AND country =? LIMIT 10",[gender,zsign,country])
+    const [data] = await connectionsql.query("SELECT campaign, COUNT(*) AS user_count, AVG(logIn) AS avg_login, AVG(logOut) AS avg_logout FROM reportdata GROUP BY campaign")
+
+    res.send(data);
 })
