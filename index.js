@@ -7,6 +7,7 @@ const Redis = require("ioredis");
 server.use(restify.plugins.bodyParser());
 const { Client } = require('@elastic/elasticsearch')
 const { faker } = require('@faker-js/faker');
+const createbulkreportsql = require('./utils');
 
 
 //database connection mongoDB
@@ -344,7 +345,7 @@ server.get('/mysql/getbulk/:gender/:zsign/:country',async(req,res)=>{
 })
 
 
-//Creating summarise report data into Mysql
+//Creating summarise report of data in campaign into Mysql
 server.post('/mysql/report', async (req, res) => {
     const connectionsql = await connectionsql1;
 
@@ -354,9 +355,9 @@ server.post('/mysql/report', async (req, res) => {
     for (let i = 0; i < 1000; i++) {
         const firstName = faker.person.firstName()
         const lastName = faker.person.lastName()
-        const campaign = 'campaign1'
+        const campaign = 'campaign3'
         const logIn =  Date.now()
-        const logOut =  Date.now() + 70000000 
+        const logOut =  Date.now() + 80000000 
         data.push([firstName, lastName, campaign, logIn,logOut]);
 
     }
@@ -378,14 +379,57 @@ server.post('/mysql/report', async (req, res) => {
 })
 
 
-// SELECT campaign, COUNT(*) AS user_count, AVG(login) AS avg_login, AVG(logout) AS avg_logout FROM mysqluserdata GROUP BY campaign
 
 
 server.get('/mysql/getreport',async(req,res)=>{
     const connectionsql = await connectionsql1;
 
-    // const [data] = await connectionsql.query("SELECT * FROM bulkdata WHERE gender=? AND zodiacSign=? AND country =? LIMIT 10",[gender,zsign,country])
-    const [data] = await connectionsql.query("SELECT campaign, COUNT(*) AS user_count, AVG(logIn) AS avg_login, AVG(logOut) AS avg_logout FROM reportdata GROUP BY campaign")
+    const [data] = await connectionsql.query("SELECT campaign, COUNT(*) AS user_count, AVG(logIn) AS avg_login, AVG(logOut) AS avg_logout,AVG(logOut)-AVG(logIn) AS WorkingTime FROM reportdata GROUP BY campaign")
 
     res.send(data);
+})
+
+server.post('/mysql/callreport/create',async(req,res)=>{
+    
+    for(let i=0;i<10;i++){
+        //we will get a array from the above function and we will put that array data in mysql
+        //createbulkreportsql function imported from utils file
+        const data1 = createbulkreportsql();
+        const connectionsql = await connectionsql1;
+        const query = 'INSERT INTO callerreport (datetime,calltype,disposeType,callDuration,agentName,campaignName,processName,leadsetId,referenceUuid,customerUuid,holdTime,muteTime,ringingTime,transferTime,conferenceTime,callTime,disposeTime,disposeName) VALUES ?';
+        connectionsql.query(query, [data1], (err, result) => {
+            if (err) {
+               return res.json({err});
+            }
+        })
+    }
+
+    return res.send("Call Report Data Inserted Successfully Into Mysql");
+
+})
+
+
+server.get('/mysql/callreport/get',async(req,res)=>{
+
+    const connectionsql = await connectionsql1;
+
+    // const [data] = await connectionsql.query("SELECT campaignName, COUNT(*) AS Total_Calls, COUNT(* WHERE calltype = 'Dispose') AS Call_Answered FROM callerreport GROUP BY campaignName")
+    const [data] = await connectionsql.query(`
+        SELECT 
+         
+          COUNT(*) AS Total_Calls,
+          HOUR(datetime) AS Call_Hour,
+          SUM(CASE WHEN calltype = 'Dispose' THEN 1 ELSE 0 END) AS Call_Answered,
+          SUM(CASE WHEN calltype = 'Missed' THEN 1 ELSE 0 END) AS Missed_Calls,
+          SUM(CASE WHEN calltype = 'Autodrop' THEN 1 ELSE 0 END) AS Call_Autodrop, 
+          SUM(CASE WHEN calltype = 'Autofail' THEN 1 ELSE 0 END) AS Call_Autofail, 
+          SUM(callDuration) AS Talktime 
+        FROM 
+          callerreport 
+        GROUP BY 
+         HOUR(datetime)
+      `);
+      
+    res.send(data);
+
 })
