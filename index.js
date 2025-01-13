@@ -1,7 +1,7 @@
 const restify = require('restify');
 const server = restify.createServer();
-const connection = require('./mongoConnection');
-const connectionsql1 = require('./sqlConnection');
+const connection = require('./Config/mongoConnection');
+const connectionsql1 = require('./Config/sqlConnection');
 const { v4: uuidv4 } = require('uuid');
 const Redis = require("ioredis");
 server.use(restify.plugins.bodyParser());
@@ -492,5 +492,5 @@ server.get('/elastic/callreport/getall',async(req,res)=>{
     const response = await client.search({ index: 'ayush' }); 
     const dataArray = response.hits.hits.map(hit => hit._source); 
     return res.send(dataArray);
-    
+
 })
