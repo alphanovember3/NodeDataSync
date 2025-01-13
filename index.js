@@ -7,7 +7,7 @@ const Redis = require("ioredis");
 server.use(restify.plugins.bodyParser());
 const { Client } = require('@elastic/elasticsearch')
 const { faker } = require('@faker-js/faker');
-const createbulkreportsql = require('./utils');
+const createbulkreport = require('./utils');
 
 
 //database connection mongoDB
@@ -334,67 +334,21 @@ server.post('/mysql/createbulk', async (req, res) => {
 
 //Get BulkData from Mysql using filters
 
-server.get('/mysql/getbulk/:gender/:zsign/:country',async(req,res)=>{
+server.get('/mysql/getbulk',async(req,res)=>{
     const connectionsql = await connectionsql1;
-    const gender = req.params.gender;
-    const zsign = req.params.zsign;
-    const country = req.params.country;
-    const [data] = await connectionsql.query("SELECT * FROM bulkdata WHERE gender=? AND zodiacSign=? AND country =? LIMIT 10",[gender,zsign,country])
+    const [data] = await connectionsql.query("SELECT * FROM bulkdata LIMIT 100")
 
     res.send(data);
 })
 
 
-//Creating summarise report of data in campaign into Mysql
-server.post('/mysql/report', async (req, res) => {
-    const connectionsql = await connectionsql1;
-
-    //This function is created to generate 10000 data at a time in array
-    function createbulksql(){
-        let data = [];
-    for (let i = 0; i < 1000; i++) {
-        const firstName = faker.person.firstName()
-        const lastName = faker.person.lastName()
-        const campaign = 'campaign3'
-        const logIn =  Date.now()
-        const logOut =  Date.now() + 80000000 
-        data.push([firstName, lastName, campaign, logIn,logOut]);
-
-    }
-    return data;
-    }
-    
-    for(let i=0;i<10;i++){
-        //we will get a array from the above function and we will put that array data in mysql
-        const data1 = createbulksql();
-        const query = 'INSERT INTO reportdata (firstName, lastName, campaign,logIn,logOut) VALUES ?';
-        connectionsql.query(query, [data1], (err, result) => {
-            if (err) {
-               return res.json({err});
-            }
-        })
-    }
-
-    return res.send("Data Inserted Successfully Into Mysql");
-})
-
-
-
-
-server.get('/mysql/getreport',async(req,res)=>{
-    const connectionsql = await connectionsql1;
-
-    const [data] = await connectionsql.query("SELECT campaign, COUNT(*) AS user_count, AVG(logIn) AS avg_login, AVG(logOut) AS avg_logout,AVG(logOut)-AVG(logIn) AS WorkingTime FROM reportdata GROUP BY campaign")
-
-    res.send(data);
-})
 
 server.post('/mysql/callreport/create',async(req,res)=>{
     
     for(let i=0;i<10;i++){
-        //we will get a array from the above function and we will put that array data in mysql
+        //we will get a array of arrays from the below function and we will put that array data in mysql
         //createbulkreportsql function imported from utils file
-        const data1 = createbulkreportsql();
+        const data1 = createbulkreport('mysql');
         const connectionsql = await connectionsql1;
         const query = 'INSERT INTO callerreport (datetime,calltype,disposeType,callDuration,agentName,campaignName,processName,leadsetId,referenceUuid,customerUuid,holdTime,muteTime,ringingTime,transferTime,conferenceTime,callTime,disposeTime,disposeName) VALUES ?';
         connectionsql.query(query, [data1], (err, result) => {
@@ -432,4 +386,111 @@ server.get('/mysql/callreport/get',async(req,res)=>{
       
     res.send(data);
 
+})
+
+//sending all the data as it is from MYSQL for fontend 
+server.get('/mysql/callreport/getall',async(req,res)=>{
+
+    const connectionsql = await connectionsql1;
+
+    // const [data] = await connectionsql.query("SELECT campaignName, COUNT(*) AS Total_Calls, COUNT(* WHERE calltype = 'Dispose') AS Call_Answered FROM callerreport GROUP BY campaignName")
+    const [data] = await connectionsql.query(`SELECT * FROM callerreport LIMIT 100`);
+      
+    res.send(data);
+
+})
+
+//Inserting Bulk data for calling report into MongoDB
+server.post('/mongo/callreport/create',async(req,res)=>{
+    
+    for(let i=0;i<10;i++){
+        //we will get a array of object from the below function
+        // low function and we will put that array data in mongoDB
+        //createbulkreportsql function imported from utils file
+        
+        const data1 = createbulkreport('mongo');
+        const usercollection = db.collection("bulkCallingReport");
+        
+        //ordered:true is send as option which will ensure that if one data fail to add other should be added
+        await usercollection.insertMany(data1, { ordered: true });
+        
+        
+    }
+    return res.send("Call Report Data Inserted Successfully Into MongoDB");
+    
+})
+
+//sending all the data as it is from MYSQL for fontend 
+server.get('/mongo/callreport/getall',async(req,res)=>{
+
+    const usercollection = await db.collection("bulkCallingReport");
+
+    const resultdata = await usercollection.find().toArray();
+    res.send(resultdata);
+
+})
+
+
+//Getting summarise report of calling data
+
+server.get('/mongo/callreport/get',async(req,res)=>{
+    
+    
+    
+    try {
+        
+        const collection = db.collection('bulkCallingReport');
+        
+        const pipeline = [
+            {
+                $group: {
+                    _id: {
+                        year: { $year: '$datetime' },
+                        month: { $month: '$datetime' },
+                        day: { $dayOfMonth: '$datetime' },
+                        hour: { $hour: '$datetime' }
+            },
+            totalCalls: { $sum: 1 },
+            totalCallDuration: { $sum: '$callDuration' }
+        }
+    },
+    {
+        $sort: {'_id.hour': 1 }
+    }
+];
+
+const results = await collection.aggregate(pipeline).toArray();
+} finally {
+    await client.close();
+}
+
+
+return res.send(results)
+
+})
+
+//Inserting Bulk data for calling report into elasticSearch
+
+server.post('/elastic/callreport/create',async(req,res)=>{
+    
+    for(let i =0;i<100;i++){
+        //data1 contains array of objects 
+        const data1 = await createbulkreport('elastic');
+        //bulk pushing data into the elastic search 
+        const response = await client.bulk({ body: data1 });
+        
+    }
+    
+    return res.send("data inserted successfully into the Elasticsearch")
+})
+
+
+//sending all the data as it is from MYSQL for fontend 
+
+server.get('/elastic/callreport/getall',async(req,res)=>{
+
+    const response = await client.search({ index: 'ayush' }); 
+    const dataArray = response.hits.hits.map(hit => hit._source); 
+    return res.send(dataArray);
+    
 })

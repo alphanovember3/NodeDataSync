@@ -2,7 +2,7 @@ const { v4: uuidv4 } = require('uuid');
 
 //This file has the functions which are required in main index file
 
-    function createbulkreportsql(){
+    function createbulkreport( databasetype){
 
         let data = [];
         let cType = ['Dispose','Missed','Autofail','Autodrop'];
@@ -69,11 +69,21 @@ const { v4: uuidv4 } = require('uuid');
         
         
 
-
-        data.push([datetime,calltype,disposeType,callDuration,agentName,campaignName,processName,leadsetId ,referenceUuid,customerUuid,holdTime ,muteTime ,ringingTime ,transferTime,conferenceTime, callTime,disposeTime,disposeName ]);
+        if(databasetype == 'mysql'){
+            
+            data.push([datetime,calltype,disposeType,callDuration,agentName,campaignName,processName,leadsetId ,referenceUuid,customerUuid,holdTime ,muteTime ,ringingTime ,transferTime,conferenceTime, callTime,disposeTime,disposeName ]);
+        }
+        else if('elastic'){
+            data.push({ index: { _index: 'ayush' } });
+            data.push({datetime,calltype,disposeType,callDuration,agentName,campaignName,processName,leadsetId ,referenceUuid,customerUuid,holdTime ,muteTime ,ringingTime ,transferTime,conferenceTime, callTime,disposeTime,disposeName });
+        }
+        else{
+            
+            data.push({datetime,calltype,disposeType,callDuration,agentName,campaignName,processName,leadsetId ,referenceUuid,customerUuid,holdTime ,muteTime ,ringingTime ,transferTime,conferenceTime, callTime,disposeTime,disposeName });
+        }
 
     }
     return data;
     }
 
-    module.exports = createbulkreportsql; 
+    module.exports = createbulkreport; 
