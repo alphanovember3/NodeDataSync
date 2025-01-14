@@ -363,14 +363,13 @@ server.post('/mysql/callreport/create',async(req,res)=>{
 })
 
 
-server.get('/mysql/callreport/get',async(req,res)=>{
+server.get('/mysql/callreportSummary/get',async(req,res)=>{
 
     const connectionsql = await connectionsql1;
 
     // const [data] = await connectionsql.query("SELECT campaignName, COUNT(*) AS Total_Calls, COUNT(* WHERE calltype = 'Dispose') AS Call_Answered FROM callerreport GROUP BY campaignName")
     const [data] = await connectionsql.query(`
         SELECT 
-         
           COUNT(*) AS Total_Calls,
           HOUR(datetime) AS Call_Hour,
           SUM(CASE WHEN calltype = 'Dispose' THEN 1 ELSE 0 END) AS Call_Answered,
@@ -433,39 +432,36 @@ server.get('/mongo/callreport/getall',async(req,res)=>{
 
 //Getting summarise report of calling data
 
-server.get('/mongo/callreport/get',async(req,res)=>{
-    
-    
-    
-    try {
+server.get('/mongo/callreportSummary/get',async(req,res)=>{
         
-        const collection = db.collection('bulkCallingReport');
-        
-        const pipeline = [
-            {
-                $group: {
-                    _id: {
-                        year: { $year: '$datetime' },
-                        month: { $month: '$datetime' },
-                        day: { $dayOfMonth: '$datetime' },
-                        hour: { $hour: '$datetime' }
-            },
-            totalCalls: { $sum: 1 },
-            totalCallDuration: { $sum: '$callDuration' }
+    const collection = db.collection('bulkCallingReport');
+
+    const result = await collection.aggregate([
+      {
+        $addFields: {
+          hour: { $hour: { $dateFromString: { dateString: "$datetime" } } }
         }
-    },
-    {
-        $sort: {'_id.hour': 1 }
-    }
-];
+      },
+      {
+        $group: {
+          _id: "$hour",
+          Talktime: { $sum: "$callDuration" },
+          Total_Calls: { $sum: 1 },
+          Call_Answered: {$sum :{$cond:[{$eq: ["$calltype","Dispose"]},1,0]}}, 
+          Missed_Calls: {$sum :{$cond:[{$eq: ["$calltype","Missed"]},1,0]}} ,
+          Call_Autodrop: {$sum :{$cond:[{$eq: ["$calltype","Autodrop"]},1,0]}}, 
+          Call_Autofail: {$sum :{$cond:[{$eq: ["$calltype","Autofail"]},1,0]}} 
+        }
+      },
+      {
+        $sort: { _id: 1 } // Sort by hour
+      }
+    ]).toArray();
 
-const results = await collection.aggregate(pipeline).toArray();
-} finally {
-    await client.close();
-}
 
 
-return res.send(results)
+
+return res.send(result)
 
 })
 
@@ -494,3 +490,48 @@ server.get('/elastic/callreport/getall',async(req,res)=>{
     return res.send(dataArray);
 
 })
+
+//Getting summarise report of calling data
+
+server.get('/elastic/callreportSummary/get',async(req,res)=>{
+
+    const response = await client.search({ index: 'ayush' }); 
+    // const dataArray = response.hits.hits.map(hit => hit._source);
+
+
+    const  body  = await client.search({
+        index: 'ayush', 
+        body: {
+            query: {
+                range: {
+                    datetime: {
+                        // gte: 'now-1h/h', 
+                        //  lt: 'now/h'
+                    }
+                }
+            }
+        }
+    });
+
+    console.log(body.hits)
+
+
+    const hits = body.hits.hits;
+    const report = {
+        totalCalls: hits.length,
+        disposeCalls: hits.filter(hit => hit._source.calltype === 'Dispose').length
+    };
+
+    
+
+    
+    
+      console.log(JSON.stringify(result.body.aggregations, null, 2));
+    
+    
+
+    return res.send(result);
+
+})
+
+
