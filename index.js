@@ -342,27 +342,6 @@ server.get('/mysql/getbulk',async(req,res)=>{
 })
 
 
-
-server.post('/mysql/callreport/create',async(req,res)=>{
-    
-    for(let i=0;i<10;i++){
-        //we will get a array of arrays from the below function and we will put that array data in mysql
-        //createbulkreportsql function imported from utils file
-        const data1 = createbulkreport('mysql');
-        const connectionsql = await connectionsql1;
-        const query = 'INSERT INTO callerreport (datetime,calltype,disposeType,callDuration,agentName,campaignName,processName,leadsetId,referenceUuid,customerUuid,holdTime,muteTime,ringingTime,transferTime,conferenceTime,callTime,disposeTime,disposeName) VALUES ?';
-        connectionsql.query(query, [data1], (err, result) => {
-            if (err) {
-               return res.json({err});
-            }
-        })
-    }
-
-    return res.send("Call Report Data Inserted Successfully Into Mysql");
-
-})
-
-
 server.get('/mysql/callreportSummary/get',async(req,res)=>{
 
     const connectionsql = await connectionsql1;
@@ -393,31 +372,12 @@ server.get('/mysql/callreport/getall',async(req,res)=>{
     const connectionsql = await connectionsql1;
 
     // const [data] = await connectionsql.query("SELECT campaignName, COUNT(*) AS Total_Calls, COUNT(* WHERE calltype = 'Dispose') AS Call_Answered FROM callerreport GROUP BY campaignName")
-    const [data] = await connectionsql.query(`SELECT * FROM callerreport LIMIT 100`);
+    const [data] = await connectionsql.query(`SELECT * FROM callerreport LIMIT 5000`);
       
     res.send(data);
 
 })
 
-//Inserting Bulk data for calling report into MongoDB
-server.post('/mongo/callreport/create',async(req,res)=>{
-    
-    for(let i=0;i<10;i++){
-        //we will get a array of object from the below function
-        // low function and we will put that array data in mongoDB
-        //createbulkreportsql function imported from utils file
-        
-        const data1 = createbulkreport('mongo');
-        const usercollection = db.collection("bulkCallingReport");
-        
-        //ordered:true is send as option which will ensure that if one data fail to add other should be added
-        await usercollection.insertMany(data1, { ordered: true });
-        
-        
-    }
-    return res.send("Call Report Data Inserted Successfully Into MongoDB");
-    
-})
 
 //sending all the data as it is from MYSQL for fontend 
 server.get('/mongo/callreport/getall',async(req,res)=>{
@@ -437,11 +397,17 @@ server.get('/mongo/callreportSummary/get',async(req,res)=>{
     const collection = db.collection('bulkCallingReport');
 
     const result = await collection.aggregate([
-      {
+    //   {
+    //     $addFields: {
+    //       hour: { $hour: { $dateFromString: { dateString: "$datetime2" } } }
+    //     }
+    //   },
+    {
         $addFields: {
-          hour: { $hour: { $dateFromString: { dateString: "$datetime" } } }
+          hour: { $hour: { $dateFromString: { dateString: { $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%L", date: "$datetime" } } } } }
         }
       },
+
       {
         $group: {
           _id: "$hour",
@@ -465,73 +431,136 @@ return res.send(result)
 
 })
 
-//Inserting Bulk data for calling report into elasticSearch
 
-server.post('/elastic/callreport/create',async(req,res)=>{
-    
-    for(let i =0;i<100;i++){
-        //data1 contains array of objects 
-        const data1 = await createbulkreport('elastic');
-        //bulk pushing data into the elastic search 
-        const response = await client.bulk({ body: data1 });
-        
-    }
-    
-    return res.send("data inserted successfully into the Elasticsearch")
-})
 
 
 //sending all the data as it is from MYSQL for fontend 
 
 server.get('/elastic/callreport/getall',async(req,res)=>{
 
-    const response = await client.search({ index: 'ayush' }); 
+    const response = await client.search({
+             index: 'ayush',
+             body:{
+                "size":10000,
+                query:{
+                    match_all:{}
+                }
+             } 
+            
+    }); 
     const dataArray = response.hits.hits.map(hit => hit._source); 
     return res.send(dataArray);
 
 })
 
-//Getting summarise report of calling data
+//Getting summarise report of calling data from Elastic Search 
 
-server.get('/elastic/callreportSummary/get',async(req,res)=>{
-
-    const response = await client.search({ index: 'ayush' }); 
-    // const dataArray = response.hits.hits.map(hit => hit._source);
-
-
-    const  body  = await client.search({
-        index: 'ayush', 
-        body: {
-            query: {
-                range: {
-                    datetime: {
-                        // gte: 'now-1h/h', 
-                        //  lt: 'now/h'
-                    }
-                }
-            }
-        }
+server.get('/elastic/callreportSummary/get', async (req, res) => {
+  try {
+    const result = await client.search({ 
+      index: 'ayush', 
+      body: { 
+       
+        aggs: { 
+          by_hour: { 
+            date_histogram: { 
+              field: 'datetime', 
+              fixed_interval: '1h' 
+            },
+                aggs: {
+                    call_count: { 
+                        value_count: { 
+                          field: 'datetime' 
+                        } 
+                      },
+                    AnsweredCount: {
+                        "filter": { "term": { "calltype.keyword" : "Dispose" } },
+                        "aggs": {
+                            call_count: { 
+                                value_count: { 
+                                  field: 'datetime' 
+                                } 
+                              }
+                        }
+                    }, 
+                    dropCount: {
+                        "filter": { "term": { "calltype.keyword" : "Autodrop" } },
+                        "aggs": {
+                            call_count: { 
+                                value_count: { 
+                                  field: 'datetime' 
+                                } 
+                              }
+                        }
+                    },
+                    failCount: {
+                        "filter": { "term": { "calltype.keyword" : "Autofail" } },
+                        "aggs": {
+                            call_count: { 
+                                value_count: { 
+                                  field: 'datetime' 
+                                } 
+                              }
+                        }
+                    },
+                    missedCount: {
+                        "filter": { "term": { "calltype.keyword" : "Missed" } },
+                        "aggs": {
+                            call_count: { 
+                                value_count: { 
+                                  field: 'datetime' 
+                                } 
+                              }
+                        }
+                    },
+                  Talktime: { 
+                    sum: { field: 'callDuration' } 
+                },     
+            } 
+          } 
+        }, 
+        size: 0 ,
+      } 
     });
 
-    console.log(body.hits)
+    const resultarray = await result.aggregations.by_hour.buckets;
+
+    res.send(resultarray);
+  } catch (error) {
+    console.error(error);
+    res.send(error);
+   
+  }
+});
 
 
-    const hits = body.hits.hits;
-    const report = {
-        totalCalls: hits.length,
-        disposeCalls: hits.filter(hit => hit._source.calltype === 'Dispose').length
-    };
-
+//creating the the report data for elastic sql and mongo at sametime
+server.post('/all/callreport/createall',async(req,res)=>{
     
+    for(let i =0;i<10000;i++){
 
-    
-    
-      console.log(JSON.stringify(result.body.aggregations, null, 2));
-    
-    
+        //creating bulk data for Elastic
+        const obj = await createbulkreport('elastic');
+        
+        const response = await client.bulk({ body: obj.data3 });
 
-    return res.send(result);
+        //creating bulk data for Mongo
 
+        const usercollection = db.collection("bulkCallingReport");
+        
+        await usercollection.insertMany(obj.data2, { ordered: true });
+
+        //Creating bulk data for sql
+        const connectionsql = await connectionsql1;
+        const query = 'INSERT INTO callerreport (datetime,calltype,disposeType,callDuration,agentName,campaignName,processName,leadsetId,referenceUuid,customerUuid,holdTime,muteTime,ringingTime,transferTime,conferenceTime,callTime,disposeTime,disposeName) VALUES ?';
+        connectionsql.query(query, [obj.data1], (err, result) => {
+            if (err) {
+               return res.json({err});
+            }
+        })
+
+        
+    }
+    // res.send(obj.data1);
+    return res.send("data inserted successfully into the all")
 })
-
-

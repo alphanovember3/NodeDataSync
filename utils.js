@@ -1,4 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
+const { faker } = require('@faker-js/faker');
 
 //This file has the functions which are required in main index file
 
@@ -17,8 +18,9 @@ const { v4: uuidv4 } = require('uuid');
     for (let i = 0; i < 1000; i++) {
 
         // let random=  Math.floor(Math.random() * (9 - 0 + 1)) + 0;
+    
+        let  datetime = faker.date.between({ from: '2025-01-01T00:00:00.000Z', to: '2025-01-02T00:00:00.000Z' })
 
-        let datetime = `2025-01-01 ${Math.floor(Math.random() * ( 15- 9 + 1)) + 9}:${Math.floor(Math.random() * ( 50- 10 + 1)) + 10}:${Math.floor(Math.random() * ( 50- 10 + 1)) + 10}`;
 
         let calltype = cType[Math.floor(Math.random() * (3 - 0 + 1)) + 0];
         let disposeType;
@@ -67,23 +69,28 @@ const { v4: uuidv4 } = require('uuid');
         
         let callDuration =  (holdTime + muteTime +  ringingTime +  transferTime  + conferenceTime + callTime  ); 
         
-        
-
-        if(databasetype == 'mysql'){
+        //for sql
+        var data1 =[];
+        //for mongo 
+        var data2 =[];
+        //for elastic
+        var data3 =[];
             
-            data.push([datetime,calltype,disposeType,callDuration,agentName,campaignName,processName,leadsetId ,referenceUuid,customerUuid,holdTime ,muteTime ,ringingTime ,transferTime,conferenceTime, callTime,disposeTime,disposeName ]);
-        }
-        else if('elastic'){
-            data.push({ index: { _index: 'ayush' } });
-            data.push({datetime,calltype,disposeType,callDuration,agentName,campaignName,processName,leadsetId ,referenceUuid,customerUuid,holdTime ,muteTime ,ringingTime ,transferTime,conferenceTime, callTime,disposeTime,disposeName });
-        }
-        else{
+            data1.push([datetime,calltype,disposeType,callDuration,agentName,campaignName,processName,leadsetId ,referenceUuid,customerUuid,holdTime ,muteTime ,ringingTime ,transferTime,conferenceTime, callTime,disposeTime,disposeName ]);
             
-            data.push({datetime,calltype,disposeType,callDuration,agentName,campaignName,processName,leadsetId ,referenceUuid,customerUuid,holdTime ,muteTime ,ringingTime ,transferTime,conferenceTime, callTime,disposeTime,disposeName });
-        }
+            data3.push({ index: { _index: 'ayush' } });
+            data3.push({datetime,calltype,disposeType,callDuration,agentName,campaignName,processName,leadsetId ,referenceUuid,customerUuid,holdTime ,muteTime ,ringingTime ,transferTime,conferenceTime, callTime,disposeTime,disposeName });
+            
+            data2.push({datetime,calltype,disposeType,callDuration,agentName,campaignName,processName,leadsetId ,referenceUuid,customerUuid,holdTime ,muteTime ,ringingTime ,transferTime,conferenceTime, callTime,disposeTime,disposeName });
 
+    }  
+
+    let obj1 = {
+        data1: data1,
+        data2: data2,
+        data3: data3,
     }
-    return data;
+    return obj1;
     }
 
     module.exports = createbulkreport; 
