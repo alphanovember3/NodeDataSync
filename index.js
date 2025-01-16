@@ -397,11 +397,7 @@ server.get('/mongo/callreportSummary/get',async(req,res)=>{
     const collection = db.collection('bulkCallingReport');
 
     const result = await collection.aggregate([
-    //   {
-    //     $addFields: {
-    //       hour: { $hour: { $dateFromString: { dateString: "$datetime2" } } }
-    //     }
-    //   },
+   
     {
         $addFields: {
           hour: { $hour: { $dateFromString: { dateString: { $dateToString: { format: "%Y-%m-%dT%H:%M:%S.%L", date: "$datetime" } } } } }
@@ -563,4 +559,33 @@ server.post('/all/callreport/createall',async(req,res)=>{
     }
     // res.send(obj.data1);
     return res.send("data inserted successfully into the all")
+})
+
+
+//filter data send using mysql
+
+server.get('/mysql/callreportSummary/get/:filter',async(req,res)=>{
+
+    const connectionsql = await connectionsql1;
+    const filter = req.params.filter;
+    // const [data] = await connectionsql.query("SELECT campaignName, COUNT(*) AS Total_Calls, COUNT(* WHERE calltype = 'Dispose') AS Call_Answered FROM callerreport GROUP BY campaignName")
+    const [data] = await connectionsql.query(`
+        SELECT 
+          COUNT(*) AS Total_Calls,
+          HOUR(datetime) AS Call_Hour,
+          SUM(CASE WHEN calltype = 'Dispose' THEN 1 ELSE 0 END) AS Call_Answered,
+          SUM(CASE WHEN calltype = 'Missed' THEN 1 ELSE 0 END) AS Missed_Calls,
+          SUM(CASE WHEN calltype = 'Autodrop' THEN 1 ELSE 0 END) AS Call_Autodrop, 
+          SUM(CASE WHEN calltype = 'Autofail' THEN 1 ELSE 0 END) AS Call_Autofail, 
+          SUM(callDuration) AS Talktime 
+        FROM 
+          callerreport
+        WHERE
+            agentName = ?  
+        GROUP BY 
+         HOUR(datetime)
+      `,[filter]);
+      
+    res.send(data);
+
 })
