@@ -520,7 +520,7 @@ server.get('/elastic/callreportSummary/get', async (req, res) => {
     });
 
     const resultarray = await result.aggregations.by_hour.buckets;
-
+    
     res.send(resultarray);
   } catch (error) {
     console.error(error);
@@ -552,7 +552,7 @@ server.post('/all/callreport/createall',async(req,res)=>{
         connectionsql.query(query, [obj.data1], (err, result) => {
             if (err) {
                return res.json({err});
-            }
+            }  
         })
 
         
