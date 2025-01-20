@@ -7,7 +7,7 @@ const Redis = require("ioredis");
 server.use(restify.plugins.bodyParser());
 const { Client } = require('@elastic/elasticsearch')
 const { faker } = require('@faker-js/faker');
-const createbulkreport = require('./utils');
+const createbulkreport = require('./Utils/utils');
 
 
 //database connection mongoDB
@@ -562,31 +562,5 @@ server.post('/all/callreport/createall',async(req,res)=>{
 })
 
 
-//filter data send using mysql
-
-server.get('/mysql/callreportSummary/get/filter',async(req,res)=>{
-
-    const connectionsql = await connectionsql1;
-
-    const filterarr = ["agentName= 'Naman'","calltype= 'Dispose'"];
-    const text = filterarr.join(" and ")
-    console.log(text)
-    // const [data] = await connectionsql.query("SELECT campaignName, COUNT(*) AS Total_Calls, COUNT(* WHERE calltype = 'Dispose') AS Call_Answered FROM callerreport GROUP BY campaignName")
-    const [data] = await connectionsql.query(`
-        SELECT 
-        *          
-        FROM 
-          callerreport
-        WHERE
-            ?  
-        GROUP BY 
-         HOUR(datetime)
-      `,[text]);
-
-     console.log(text)
-      
-    res.send(data);
-
-})
 
 
