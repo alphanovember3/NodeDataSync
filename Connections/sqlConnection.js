@@ -1,6 +1,7 @@
 
 const mysql = require('mysql2/promise');
-
+const dotenv = require("dotenv");
+dotenv.config();
 
 
 const connectionsql =  mysql.createConnection({
@@ -12,4 +13,4 @@ const connectionsql =  mysql.createConnection({
 
 
 
-module.exports = connectionsql;
+module.exports =  connectionsql;

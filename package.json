@@ -13,6 +13,7 @@
     "@elastic/elasticsearch": "^8.17.0",
     "@faker-js/faker": "^9.3.0",
     "body-parser": "^1.20.3",
+    "cron": "^3.5.0",
     "dotenv": "^16.4.7",
     "ioredis": "^5.4.2",
     "mongodb": "^6.12.0",
