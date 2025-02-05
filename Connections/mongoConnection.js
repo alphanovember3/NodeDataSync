@@ -25,6 +25,8 @@ const connection = async () => {
   } catch (error) {
     console.error("MongoDB connection error:", error);
   }
-};
+};  
 
+//extracting the connection(test1)
 module.exports = connection;
+

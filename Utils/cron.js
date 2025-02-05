@@ -11,13 +11,3 @@ const job = new CronJob(
 	true, // start
 	'America/Los_Angeles' // timeZone
 );
-
-
-
-
-
-
-
-
-
-
